@@ -25,4 +25,4 @@ This project demonstrates advanced Human-AI collaboration, leveraging multiple m
 
 ---
 **Role:** Project & Delivery Manager
-**Focus:** Operational Efficiency & AI Orchestration
+**Focus:** Operational Efficiency & AI Orchestration.
