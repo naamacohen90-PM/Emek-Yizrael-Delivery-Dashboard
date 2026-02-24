@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>דאשבורד ניהול פרויקטים | עמק יזרעאל</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *{font-family:'Assistant','Segoe UI',sans-serif;box-sizing:border-box;}
+    body{background:#0b1120;min-height:100vh;}
+
+    .glass-card{background:linear-gradient(135deg,rgba(22,33,55,.95),rgba(13,20,37,.9));border:1px solid rgba(51,65,85,.5);border-radius:14px;}
+    .kpi-card{background:linear-gradient(135deg,rgba(22,33,55,.95),rgba(13,20,37,.95));border:1px solid rgba(51,65,85,.5);border-radius:14px;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;}
+    .kpi-card::before{content:'';position:absolute;top:0;right:0;width:70px;height:70px;background:radial-gradient(circle,var(--ac,rgba(59,130,246,.15)),transparent 70%);pointer-events:none;}
+    .kpi-card:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,0,0,.4);}
+
+    /* ── editable cells ── */
+    td.editable{cursor:pointer;position:relative;transition:background .12s;}
+    td.editable:hover{background:rgba(59,130,246,.07)!important;}
+    td.editable:hover::after{content:'✎';position:absolute;top:4px;left:4px;font-size:.65rem;color:rgba(96,165,250,.5);pointer-events:none;}
+    td.editable.editing{background:rgba(59,130,246,.1)!important;}
+
+    /* ── edit inputs ── */
+    .edit-input,.edit-select{background:#0f172a;color:#e2e8f0;border:1px solid #3b82f6;border-radius:6px;padding:3px 7px;font-size:.8rem;width:100%;font-family:inherit;outline:none;}
+    .edit-select{cursor:pointer;}
+    .edit-input:focus,.edit-select:focus{border-color:#60a5fa;box-shadow:0 0 0 2px rgba(59,130,246,.2);}
+    option{background:#1e293b;color:#e2e8f0;}
+
+    /* ── table ── */
+    .priority-5-row{background:rgba(100,0,0,.22)!important;border-right:3px solid #dc2626!important;}
+    .priority-5-row:hover{background:rgba(127,0,0,.35)!important;}
+    tr{transition:background .12s;}
+    tr:hover:not(.priority-5-row){background:rgba(51,65,85,.18);}
+    .badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:9999px;font-size:.7rem;font-weight:600;white-space:nowrap;}
+    .urgent-tag{margin-right:6px;background:rgba(220,38,38,.2);color:#f87171;font-size:.65rem;padding:1px 6px;border-radius:9999px;vertical-align:middle;}
+    .del-btn{background:rgba(239,68,68,.1);color:#f87171;border:none;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:.75rem;transition:background .15s;}
+    .del-btn:hover{background:rgba(239,68,68,.3);}
+
+    /* ── toolbar buttons ── */
+    .btn{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:8px;padding:7px 14px;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;}
+    .btn-blue{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);}
+    .btn-blue:hover{background:rgba(59,130,246,.28);}
+    .btn-green{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.3);}
+    .btn-green:hover{background:rgba(34,197,94,.28);}
+    .btn-red{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.25);}
+    .btn-red:hover{background:rgba(239,68,68,.25);}
+
+    /* ── modal ── */
+    #modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;display:none;align-items:center;justify-content:center;}
+    #modal-overlay.open{display:flex;}
+    #modal-box{background:#111827;border:1px solid rgba(51,65,85,.7);border-radius:16px;padding:28px;width:min(560px,95vw);max-height:92vh;overflow-y:auto;}
+    .modal-field{margin-bottom:14px;}
+    .modal-label{color:#94a3b8;font-size:.78rem;font-weight:600;margin-bottom:5px;display:block;}
+    .modal-input,.modal-select{width:100%;background:#0f172a;border:1px solid rgba(51,65,85,.7);border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:.85rem;font-family:inherit;outline:none;transition:border-color .15s;}
+    .modal-input:focus,.modal-select:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15);}
+
+    /* ── save badge ── */
+    #save-badge{display:none;background:rgba(34,197,94,.15);color:#4ade80;font-size:.72rem;padding:3px 10px;border-radius:9999px;border:1px solid rgba(34,197,94,.3);}
+
+    /* scrollbar */
+    ::-webkit-scrollbar{width:5px;height:5px;}
+    ::-webkit-scrollbar-track{background:#0f172a;}
+    ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px;}
+    ::-webkit-scrollbar-thumb:hover{background:#475569;}
+
+    @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    .fade-up{animation:fadeUp .5s ease forwards;}
+    .d1{animation-delay:.1s;opacity:0}.d2{animation-delay:.2s;opacity:0}.d3{animation-delay:.3s;opacity:0}.d4{animation-delay:.4s;opacity:0}
+
+    input:focus,select:focus{outline:none;}
+  </style>
+</head>
+<body style="background:#0b1120;direction:rtl;">
+
+<!-- bg deco -->
+<div style="position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;">
+  <div style="position:absolute;top:-100px;right:-100px;width:500px;height:500px;background:radial-gradient(circle,rgba(59,130,246,.07),transparent 65%);"></div>
+  <div style="position:absolute;bottom:-80px;left:-80px;width:400px;height:400px;background:radial-gradient(circle,rgba(139,92,246,.06),transparent 65%);"></div>
+</div>
+
+<!-- ══ ADD PROJECT MODAL ══ -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h2 style="color:#e2e8f0;font-size:1.1rem;font-weight:700;">הוספת פרויקט חדש</h2>
+      <button onclick="closeModal()" style="background:rgba(51,65,85,.5);color:#94a3b8;border:none;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:.9rem;">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+      <div class="modal-field">
+        <label class="modal-label">יישוב *</label>
+        <input id="m-settlement" class="modal-input" placeholder="שם היישוב">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">שם פרויקט *</label>
+        <input id="m-project" class="modal-input" placeholder="תיאור הפרויקט">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">קטגוריה</label>
+        <select id="m-category" class="modal-select">
+          <option value="הנדסה">הנדסה</option><option value="תשתיות">תשתיות</option>
+          <option value="מקרקעין">מקרקעין</option><option value="חינוך">חינוך</option>
+          <option value="קהילה">קהילה</option><option value="ביטחון">ביטחון</option>
+          <option value="דיגיטציה">דיגיטציה</option><option value="אסטרטגיה">אסטרטגיה</option>
+          <option value="רווחה">רווחה</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">סטטוס</label>
+        <select id="m-status" class="modal-select">
+          <option value="Planning">תכנון</option><option value="RFP Stage">מכרז</option>
+          <option value="In Progress">בביצוע</option><option value="Done">הושלם</option>
+          <option value="Blocked">חסום</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">עדיפות (1–5)</label>
+        <select id="m-priority" class="modal-select">
+          <option value="1">1 – נמוכה</option><option value="2">2</option>
+          <option value="3" selected>3 – בינונית</option><option value="4">4</option>
+          <option value="5">5 – דחוף</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">תקציב (₪)</label>
+        <input id="m-budget" class="modal-input" type="number" placeholder="0" min="0">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">אחראי מועצה</label>
+        <input id="m-contact" class="modal-input" placeholder="שם האחראי">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">רבעון</label>
+        <select id="m-quarter" class="modal-select">
+          <option value="Q4-2024">Q4-2024</option><option value="Q1-2025">Q1-2025</option>
+          <option value="Q2-2025">Q2-2025</option><option value="Q3-2025">Q3-2025</option>
+          <option value="Q4-2025" selected>Q4-2025</option>
+        </select>
+      </div>
+    </div>
+    <div id="modal-err" style="color:#f87171;font-size:.8rem;margin-bottom:10px;display:none;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-start;margin-top:6px;">
+      <button class="btn btn-green" onclick="saveNewProject()">💾 שמור פרויקט</button>
+      <button class="btn btn-red" onclick="closeModal()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div style="position:relative;z-index:1;" class="px-4 py-5 md:px-7 max-w-screen-2xl mx-auto">
+
+  <!-- HEADER -->
+  <div class="glass-card p-5 mb-5 fade-up" style="background:linear-gradient(135deg,rgba(22,33,55,.95),rgba(13,20,37,.9));">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 7px #22c55e;display:inline-block;"></span>
+          <span style="color:#64748b;font-size:.78rem;font-weight:500;">פורטפוליו פעיל · ספטמבר 2024 – דצמבר 2025</span>
+          <span id="save-badge">✓ נשמר</span>
+        </div>
+        <h1 style="font-size:1.9rem;font-weight:800;background:linear-gradient(135deg,#e2e8f0 30%,#7c94b3);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.2;">ניהול תיק פרויקטים</h1>
+        <p style="color:#4b6584;font-size:.85rem;margin-top:3px;">מועצה אזורית עמק יזרעאל &nbsp;·&nbsp; Project &amp; Delivery Manager</p>
+      </div>
+      <div style="text-align:left;">
+        <div style="color:#334155;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;">עדכון אחרון</div>
+        <div style="color:#64748b;font-size:.85rem;font-weight:600;" id="hdr-date"></div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;" id="hdr-chips"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+    <div class="kpi-card p-4 fade-up d1" style="--ac:rgba(59,130,246,.2);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div><div style="color:#64748b;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">תקציב כולל</div>
+          <div id="kpi-budget" style="font-size:1.6rem;font-weight:800;color:#60a5fa;">₪0</div>
+          <div style="color:#475569;font-size:.7rem;margin-top:3px;" id="kpi-budget-sub">מיליוני ₪</div></div>
+        <div style="background:rgba(59,130,246,.12);border-radius:10px;padding:9px;flex-shrink:0;">
+          <svg width="18" height="18" fill="none" stroke="#60a5fa" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+      </div>
+      <div style="margin-top:10px;height:3px;border-radius:9999px;background:rgba(51,65,85,.4);overflow:hidden;"><div style="width:100%;height:100%;background:linear-gradient(90deg,#3b82f6,#6366f1);"></div></div>
+    </div>
+
+    <div class="kpi-card p-4 fade-up d2" style="--ac:rgba(167,139,250,.2);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div><div style="color:#64748b;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">פרויקטים פעילים</div>
+          <div id="kpi-active" style="font-size:1.6rem;font-weight:800;color:#a78bfa;">0</div>
+          <div style="color:#475569;font-size:.7rem;margin-top:3px;">מתוך <span id="kpi-total">0</span> פרויקטים</div></div>
+        <div style="background:rgba(167,139,250,.12);border-radius:10px;padding:9px;flex-shrink:0;">
+          <svg width="18" height="18" fill="none" stroke="#a78bfa" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      </div>
+      <div style="margin-top:10px;height:3px;border-radius:9999px;background:rgba(51,65,85,.4);overflow:hidden;">
+        <div id="kpi-active-bar" style="height:100%;background:linear-gradient(90deg,#a78bfa,#7c3aed);transition:width 1s ease;width:0%"></div></div>
+    </div>
+
+    <div class="kpi-card p-4 fade-up d3" style="--ac:rgba(34,197,94,.15);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="flex:1;"><div style="color:#64748b;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">אחוז השלמה</div>
+          <div id="kpi-pct" style="font-size:1.6rem;font-weight:800;color:#22c55e;">0%</div>
+          <div style="color:#475569;font-size:.7rem;margin-top:3px;"><span id="kpi-done">0</span> פרויקטים הושלמו</div></div>
+        <svg width="52" height="52" viewBox="0 0 52 52" style="flex-shrink:0;">
+          <circle cx="26" cy="26" r="21" fill="none" stroke="rgba(51,65,85,.5)" stroke-width="4"/>
+          <circle id="progress-ring" cx="26" cy="26" r="21" fill="none" stroke="#22c55e" stroke-width="4"
+            stroke-linecap="round" style="transform:rotate(-90deg);transform-origin:50% 50%;"
+            stroke-dasharray="132" stroke-dashoffset="132"/></svg>
+      </div>
+    </div>
+
+    <div class="kpi-card p-4 fade-up d4" style="--ac:rgba(239,68,68,.15);border-color:rgba(239,68,68,.25);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div><div style="color:#64748b;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">עדיפות 5 – דחוף</div>
+          <div id="kpi-urgent" style="font-size:1.6rem;font-weight:800;color:#f87171;">0</div>
+          <div style="color:#475569;font-size:.7rem;margin-top:3px;">דורשים טיפול מיידי</div></div>
+        <div style="background:rgba(239,68,68,.12);border-radius:10px;padding:9px;flex-shrink:0;">
+          <svg width="18" height="18" fill="none" stroke="#f87171" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      </div>
+      <div id="urgent-chips" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 1 -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <div class="glass-card p-5 md:col-span-2 fade-up">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div><h3 style="color:#e2e8f0;font-size:.9rem;font-weight:700;">תקציב לפי יישוב</h3>
+          <p style="color:#475569;font-size:.72rem;margin-top:1px;">סה"כ תקציב לפי יישוב (מיליוני ₪)</p></div>
+      </div>
+      <div style="height:250px;position:relative;"><canvas id="budgetChart"></canvas></div>
+    </div>
+
+    <div class="glass-card p-5 fade-up d1">
+      <div style="margin-bottom:14px;"><h3 style="color:#e2e8f0;font-size:.9rem;font-weight:700;">התפלגות סטטוסים</h3>
+        <p style="color:#475569;font-size:.72rem;margin-top:1px;">לפי מספר פרויקטים</p></div>
+      <div style="height:170px;position:relative;"><canvas id="statusChart"></canvas></div>
+      <div id="status-legend" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 2 -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+    <div class="glass-card p-5 fade-up">
+      <div style="margin-bottom:14px;"><h3 style="color:#e2e8f0;font-size:.9rem;font-weight:700;">פיזור פרויקטים לפי רבעון וסטטוס</h3>
+        <p style="color:#475569;font-size:.72rem;margin-top:1px;">עומס דליברי לפי תקופות</p></div>
+      <div style="height:220px;position:relative;"><canvas id="quarterChart"></canvas></div>
+    </div>
+    <div class="glass-card p-5 fade-up d1">
+      <div style="margin-bottom:14px;"><h3 style="color:#e2e8f0;font-size:.9rem;font-weight:700;">תקציב לפי קטגוריה</h3>
+        <p style="color:#475569;font-size:.72rem;margin-top:1px;">השקעה לפי תחום (₪)</p></div>
+      <div style="height:220px;position:relative;"><canvas id="categoryChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TABLE SECTION -->
+  <div class="glass-card p-5 mb-4">
+
+    <!-- Table toolbar -->
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+      <div>
+        <h3 style="color:#e2e8f0;font-size:.9rem;font-weight:700;">רשימת פרויקטים</h3>
+        <p style="color:#475569;font-size:.72rem;margin-top:2px;">לחץ על כל תא לעריכה · שורות אדומות = עדיפות 5</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-green" onclick="openModal()">+ הוסף פרויקט</button>
+        <button class="btn btn-blue" onclick="exportCSV()">⬇ ייצוא CSV</button>
+        <button class="btn btn-red" onclick="resetData()">↺ אפס נתונים</button>
+      </div>
+    </div>
+
+    <!-- Filters row -->
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <div style="position:relative;">
+        <svg style="position:absolute;right:9px;top:50%;transform:translateY(-50%);color:#475569;" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input id="q-search" type="text" placeholder="חיפוש פרויקט, יישוב, אחראי..."
+          style="background:rgba(11,17,32,.8);border:1px solid rgba(51,65,85,.6);border-radius:9px;padding:6px 30px 6px 10px;color:#e2e8f0;font-size:.8rem;width:230px;">
+      </div>
+      <select id="q-status" style="background:rgba(11,17,32,.8);border:1px solid rgba(51,65,85,.6);border-radius:9px;padding:6px 10px;color:#e2e8f0;font-size:.8rem;">
+        <option value="">כל הסטטוסים</option>
+        <option value="Done">הושלם</option><option value="In Progress">בביצוע</option>
+        <option value="RFP Stage">מכרז</option><option value="Planning">תכנון</option>
+        <option value="Blocked">חסום</option>
+      </select>
+      <select id="q-settlement" style="background:rgba(11,17,32,.8);border:1px solid rgba(51,65,85,.6);border-radius:9px;padding:6px 10px;color:#e2e8f0;font-size:.8rem;">
+        <option value="">כל היישובים</option>
+      </select>
+      <select id="q-priority" style="background:rgba(11,17,32,.8);border:1px solid rgba(51,65,85,.6);border-radius:9px;padding:6px 10px;color:#e2e8f0;font-size:.8rem;">
+        <option value="">כל העדיפויות</option>
+        <option value="5">⚡ עדיפות 5</option><option value="4">4</option>
+        <option value="3">3</option><option value="2">2</option><option value="1">1</option>
+      </select>
+    </div>
+
+    <!-- Stats bar -->
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;padding:8px 12px;background:rgba(11,17,32,.5);border-radius:8px;font-size:.75rem;color:#64748b;">
+      <span>מציג: <strong id="tbl-count" style="color:#94a3b8;">0</strong> פרויקטים</span>
+      <span style="color:#334155;">|</span>
+      <span>תקציב מסונן: <strong id="tbl-budget" style="color:#60a5fa;">₪0</strong></span>
+      <span style="color:#334155;">|</span>
+      <span id="tbl-urgent-stat" style="color:#f87171;"></span>
+    </div>
+
+    <!-- Table -->
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(51,65,85,.5);">
+            <th onclick="sortTable('s')"  class="th-s" style="color:#64748b;font-weight:600;text-align:right;padding:8px 10px;font-size:.72rem;cursor:pointer;white-space:nowrap;">יישוב <span id="si-s"></span></th>
+            <th onclick="sortTable('p')"  class="th-s" style="color:#64748b;font-weight:600;text-align:right;padding:8px 10px;font-size:.72rem;cursor:pointer;white-space:nowrap;">פרויקט <span id="si-p"></span></th>
+            <th style="color:#64748b;font-weight:600;text-align:right;padding:8px 10px;font-size:.72rem;">קטגוריה</th>
+            <th onclick="sortTable('st')" class="th-s" style="color:#64748b;font-weight:600;text-align:right;padding:8px 10px;font-size:.72rem;cursor:pointer;white-space:nowrap;">סטטוס <span id="si-st"></span></th>
+            <th onclick="sortTable('pr')" class="th-s" style="color:#64748b;font-weight:600;text-align:center;padding:8px 10px;font-size:.72rem;cursor:pointer;white-space:nowrap;">עדיפות <span id="si-pr"></span></th>
+            <th onclick="sortTable('b')"  class="th-s" style="color:#64748b;font-weight:600;text-align:left;padding:8px 10px;font-size:.72rem;cursor:pointer;white-space:nowrap;">תקציב (₪) <span id="si-b"></span></th>
+            <th style="color:#64748b;font-weight:600;text-align:right;padding:8px 10px;font-size:.72rem;">אחראי מועצה</th>
+            <th onclick="sortTable('q')"  class="th-s" style="color:#64748b;font-weight:600;text-align:right;padding:8px 10px;font-size:.72rem;cursor:pointer;white-space:nowrap;">רבעון <span id="si-q"></span></th>
+            <th style="color:#64748b;font-weight:600;text-align:center;padding:8px 10px;font-size:.72rem;">מחק</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="text-align:center;color:#1e293b;font-size:.72rem;padding-bottom:16px;">
+    דאשבורד ניהול פרויקטים · מועצה אזורית עמק יזרעאל · ספטמבר 2024 – דצמבר 2025
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+//  ORIGINAL DATA (source of truth for reset)
+// ════════════════════════════════════════════════
+const ORIGINAL = [
+  {s:"הרדוף",       p:"נגישות מבני ציבור",       c:"הנדסה",     st:"RFP Stage",  pr:2, b:645480,   cc:"לילך כהני",       q:"Q4-2024"},
+  {s:"אלון הגליל",  p:"בניית חזון ליישוב",        c:"אסטרטגיה",  st:"Done",       pr:4, b:45000,    cc:"לילך כהני",       q:"Q4-2024"},
+  {s:"גבעת אלה",    p:"הסדרת קו כחול",            c:"מקרקעין",   st:"Planning",   pr:4, b:3694548,  cc:"אגף ביטחון",      q:"Q4-2024"},
+  {s:"חנתון",       p:"מעון יום חדש",             c:"חינוך",     st:"In Progress",pr:5, b:904835,   cc:"ראש המועצה",      q:"Q4-2024"},
+  {s:"הרדוף",       p:"שדרוג חשמל",               c:"תשתיות",    st:"RFP Stage",  pr:1, b:214570,   cc:"מחלקת הנדסה",     q:"Q4-2024"},
+  {s:"גבעת אלה",    p:"מצלמות היקפיות",           c:"ביטחון",    st:"Blocked",    pr:2, b:190669,   cc:"מחלקת הנדסה",     q:"Q4-2024"},
+  {s:"אלון הגליל",  p:"מרכז הפעלה",               c:"ביטחון",    st:"Blocked",    pr:1, b:176705,   cc:"לילך כהני",       q:"Q4-2024"},
+  {s:"סוועד חמירה", p:"שדרוג חשמל",               c:"תשתיות",    st:"RFP Stage",  pr:4, b:256107,   cc:"אגף ביטחון",      q:"Q4-2024"},
+  {s:"הסוללים",     p:"סקר נכסים דיגיטלי",       c:"דיגיטציה",  st:"Planning",   pr:1, b:84818,    cc:'מחלקת רווחה',       q:"Q4-2024"},
+  {s:"הרדוף",       p:"מרכז ותיקים",              c:"קהילה",     st:"RFP Stage",  pr:1, b:355941,   cc:"אגף ביטחון",      q:"Q4-2024"},
+  {s:"הרדוף",       p:"סלילת כביש גישה",          c:"הנדסה",     st:"Done",       pr:3, b:2143232,  cc:'גזבר המועצה',      q:"Q4-2024"},
+  {s:"הרדוף",       p:"סיבים אופטיים",            c:"תשתיות",    st:"Blocked",    pr:5, b:366738,   cc:"ראש המועצה",      q:"Q1-2025"},
+  {s:"הסוללים",     p:'תב"ע חדשה',               c:"מקרקעין",   st:"Blocked",    pr:2, b:2401613,  cc:'גזבר המועצה',      q:"Q1-2025"},
+  {s:"הסוללים",     p:"נגישות מבני ציבור",        c:"הנדסה",     st:"Done",       pr:2, b:810181,   cc:"אגף ביטחון",      q:"Q1-2025"},
+  {s:"סוועד חמירה", p:"גינה קהילתית",             c:"קהילה",     st:"Planning",   pr:5, b:372521,   cc:'מחלקת רווחה',       q:"Q1-2025"},
+  {s:"עדי",         p:"שיפוץ מגרש ספורט",         c:"הנדסה",     st:"Blocked",    pr:3, b:3530080,  cc:"מחלקת הנדסה",     q:"Q1-2025"},
+  {s:"הושעיה",      p:"הרחבת יישוב שלב ט+י",      c:"הנדסה",     st:"In Progress",pr:5, b:5200000,  cc:"לילך כהני",       q:"Q1-2025"},
+  {s:"אלון הגליל",  p:'שיפוץ גנ"ש עליון',        c:"קהילה",     st:"Done",       pr:4, b:434870,   cc:'מחלקת רווחה',       q:"Q1-2025"},
+  {s:"הרדוף",       p:"שדרוג חשמל",               c:"תשתיות",    st:"Done",       pr:3, b:404376,   cc:"לילך כהני",       q:"Q1-2025"},
+  {s:"גבעת אלה",    p:"סיבים אופטיים",            c:"תשתיות",    st:"RFP Stage",  pr:2, b:256324,   cc:"ראש המועצה",      q:"Q1-2025"},
+  {s:"סוועד חמירה", p:"מצלמות היקפיות",           c:"ביטחון",    st:"In Progress",pr:2, b:163444,   cc:"מחלקת הנדסה",     q:"Q1-2025"},
+  {s:"הרדוף",       p:"ספרייה יישובית",           c:"חינוך",     st:"Blocked",    pr:1, b:1883916,  cc:"אגף ביטחון",      q:"Q1-2025"},
+  {s:"סוועד חמירה", p:"מרכז ותיקים",              c:"קהילה",     st:"RFP Stage",  pr:5, b:176268,   cc:"עמרי",            q:"Q1-2025"},
+  {s:"הושעיה",      p:"שדרוג חשמל",               c:"תשתיות",    st:"Blocked",    pr:2, b:144731,   cc:'גזבר המועצה',      q:"Q1-2025"},
+  {s:"סוועד חמירה", p:'שיפוץ גנ"ש עליון',        c:"קהילה",     st:"RFP Stage",  pr:2, b:183536,   cc:"עמרי",            q:"Q1-2025"},
+  {s:"הושעיה",      p:"תוכנית גישור קהילה",       c:"אסטרטגיה",  st:"Planning",   pr:5, b:69989,    cc:"עמרי",            q:"Q1-2025"},
+  {s:"הרדוף",       p:"שיפוץ מגרש ספורט",         c:"הנדסה",     st:"Done",       pr:4, b:5391740,  cc:"עמרי",            q:"Q2-2025"},
+  {s:"גבעת אלה",    p:'תב"ע חדשה',               c:"מקרקעין",   st:"RFP Stage",  pr:2, b:4779804,  cc:"מחלקת הנדסה",     q:"Q2-2025"},
+  {s:"חנתון",       p:"סיבים אופטיים",            c:"תשתיות",    st:"RFP Stage",  pr:1, b:217682,   cc:'מחלקת רווחה',       q:"Q2-2025"},
+  {s:"הסוללים",     p:"פורטל תושבים",             c:"דיגיטציה",  st:"Done",       pr:3, b:32025,    cc:"עמרי",            q:"Q2-2025"},
+  {s:"גבעת אלה",    p:'שיפוץ גנ"ש עליון',        c:"קהילה",     st:"Planning",   pr:3, b:350000,   cc:"ראש המועצה",      q:"Q2-2025"},
+  {s:"סוועד חמירה", p:"מרכז הפעלה",               c:"ביטחון",    st:"RFP Stage",  pr:1, b:91094,    cc:"אגף ביטחון",      q:"Q2-2025"},
+  {s:"גבעת אלה",    p:"סיבים אופטיים",            c:"תשתיות",    st:"Done",       pr:5, b:369064,   cc:'מחלקת רווחה',       q:"Q2-2025"},
+  {s:"הושעיה",      p:"גינה קהילתית",             c:"קהילה",     st:"Done",       pr:2, b:350095,   cc:"עמרי",            q:"Q2-2025"},
+  {s:"חנתון",       p:"אוטומציית רישום",          c:"דיגיטציה",  st:"Done",       pr:2, b:95365,    cc:'גזבר המועצה',      q:"Q2-2025"},
+  {s:"עדי",         p:'שיפוץ גנ"ש עליון',        c:"קהילה",     st:"In Progress",pr:3, b:351512,   cc:"מחלקת הנדסה",     q:"Q2-2025"},
+  {s:"חנתון",       p:"מרכז יום",                 c:"רווחה",     st:"Planning",   pr:1, b:103361,   cc:'מחלקת רווחה',       q:"Q2-2025"},
+  {s:"עדי",         p:"פורטל תושבים",             c:"דיגיטציה",  st:"Blocked",    pr:2, b:43824,    cc:'מחלקת רווחה',       q:"Q2-2025"},
+  {s:"גבעת אלה",    p:"מרכז יום",                 c:"רווחה",     st:"Done",       pr:1, b:19628,    cc:'גזבר המועצה',      q:"Q2-2025"},
+  {s:"הרדוף",       p:"הרחבת חקלאים",             c:"מקרקעין",   st:"In Progress",pr:3, b:2923295,  cc:"ראש המועצה",      q:"Q2-2025"},
+  {s:"שמשית",       p:"תאורת ביטחון",             c:"ביטחון",    st:"Planning",   pr:2, b:115895,   cc:'מחלקת רווחה',       q:"Q2-2025"},
+  {s:"חנתון",       p:"שיפוץ בית ספר",            c:"חינוך",     st:"RFP Stage",  pr:2, b:3160386,  cc:"עמרי",            q:"Q2-2025"},
+  {s:"אלון הגליל",  p:"שדרוג חשמל",               c:"תשתיות",    st:"Blocked",    pr:2, b:203689,   cc:'גזבר המועצה',      q:"Q2-2025"},
+  {s:"גבעת אלה",    p:'שיפוץ גנ"ש עליון',        c:"קהילה",     st:"RFP Stage",  pr:2, b:308833,   cc:"לילך כהני",       q:"Q2-2025"},
+  {s:"אלון הגליל",  p:"בניית חזון ליישוב",        c:"אסטרטגיה",  st:"Done",       pr:5, b:91726,    cc:"מחלקת הנדסה",     q:"Q2-2025"},
+  {s:"הסוללים",     p:"סקר נכסים דיגיטלי",       c:"דיגיטציה",  st:"Planning",   pr:2, b:45293,    cc:"ראש המועצה",      q:"Q2-2025"},
+  {s:"שמשית",       p:"פורטל תושבים",             c:"דיגיטציה",  st:"Blocked",    pr:5, b:100451,   cc:"מחלקת הנדסה",     q:"Q3-2025"},
+  {s:"הרדוף",       p:"פורטל תושבים",             c:"דיגיטציה",  st:"Planning",   pr:2, b:31666,    cc:"ראש המועצה",      q:"Q3-2025"},
+  {s:"הסוללים",     p:"סיבים אופטיים",            c:"תשתיות",    st:"Done",       pr:4, b:240312,   cc:'גזבר המועצה',      q:"Q3-2025"},
+  {s:"סוועד חמירה", p:"אוטומציית רישום",          c:"דיגיטציה",  st:"Blocked",    pr:1, b:94059,    cc:'מחלקת רווחה',       q:"Q3-2025"},
+  {s:"חנתון",       p:"תאורת LED",                c:"תשתיות",    st:"In Progress",pr:1, b:395205,   cc:"לילך כהני",       q:"Q4-2025"},
+  {s:"חנתון",       p:"הקמת מועדון נוער",         c:"קהילה",     st:"RFP Stage",  pr:5, b:305935,   cc:"ראש המועצה",      q:"Q4-2025"},
+  {s:"עדי",         p:"מעון יום חדש",             c:"חינוך",     st:"In Progress",pr:4, b:3760218,  cc:'מחלקת רווחה',       q:"Q4-2025"},
+  {s:"הסוללים",     p:"סלילת כביש גישה",          c:"הנדסה",     st:"RFP Stage",  pr:1, b:3831149,  cc:"לילך כהני",       q:"Q4-2025"},
+  {s:"שמשית",       p:"תוכנית גישור קהילה",       c:"אסטרטגיה",  st:"Planning",   pr:4, b:44949,    cc:"לילך כהני",       q:"Q4-2025"},
+  {s:"עדי",         p:"שיפוץ מגרש ספורט",         c:"הנדסה",     st:"In Progress",pr:4, b:1245580,  cc:"אגף ביטחון",      q:"Q4-2025"},
+  {s:"סוועד חמירה", p:"מצלמות היקפיות",           c:"ביטחון",    st:"Done",       pr:5, b:144522,   cc:'גזבר המועצה',      q:"Q4-2025"},
+  {s:"גבעת אלה",    p:"מצלמות היקפיות",           c:"ביטחון",    st:"Planning",   pr:3, b:93768,    cc:"ראש המועצה",      q:"Q4-2025"},
+  {s:"סוועד חמירה", p:"גינה קהילתית",             c:"קהילה",     st:"Done",       pr:2, b:392814,   cc:"מחלקת הנדסה",     q:"Q4-2025"},
+  {s:"אלון הגליל",  p:'תב"ע חדשה',               c:"מקרקעין",   st:"Done",       pr:5, b:2903721,  cc:"לילך כהני",       q:"Q4-2025"},
+];
+
+// ════════════════════════════════════════════════
+//  LIVE DATA  (loaded from storage or cloned)
+// ════════════════════════════════════════════════
+const LS_KEY = 'emek_dashboard_v1';
+let DATA = loadFromStorage();
+
+function loadFromStorage(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){ const d=JSON.parse(raw); if(Array.isArray(d)&&d.length) return d; }
+  }catch(e){}
+  return ORIGINAL.map(r=>({...r}));
+}
+function saveToStorage(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify(DATA));
+    const b=document.getElementById('save-badge');
+    b.style.display='inline';
+    setTimeout(()=>{ b.style.display='none'; },2000);
+  }catch(e){}
+}
+function resetData(){
+  if(!confirm('לאפס את כל הנתונים לגרסה המקורית מהאקסל?')) return;
+  localStorage.removeItem(LS_KEY);
+  DATA = ORIGINAL.map(r=>({...r}));
+  refreshAll();
+}
+
+// ════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════
+const STATUS_CFG = {
+  'Done':        {color:'#22c55e', bg:'rgba(34,197,94,.14)',  he:'הושלם'},
+  'In Progress': {color:'#f97316', bg:'rgba(249,115,22,.14)', he:'בביצוע'},
+  'RFP Stage':   {color:'#eab308', bg:'rgba(234,179,8,.14)',  he:'מכרז'},
+  'Planning':    {color:'#a855f7', bg:'rgba(168,85,247,.14)', he:'תכנון'},
+  'Blocked':     {color:'#ef4444', bg:'rgba(239,68,68,.14)',  he:'חסום'},
+};
+const STATUS_ORDER = ['Done','In Progress','RFP Stage','Planning','Blocked'];
+const STATUS_HE_TO_EN = Object.fromEntries(Object.entries(STATUS_CFG).map(([k,v])=>[v.he,k]));
+
+const CATEGORIES = ['הנדסה','תשתיות','מקרקעין','חינוך','קהילה','ביטחון','דיגיטציה','אסטרטגיה','רווחה'];
+const CAT_COLOR  = {
+  'הנדסה':'#60a5fa','תשתיות':'#34d399','מקרקעין':'#fbbf24',
+  'חינוך':'#c084fc','קהילה':'#fb7185','ביטחון':'#38bdf8',
+  'דיגיטציה':'#4ade80','אסטרטגיה':'#f59e0b','רווחה':'#e879f9',
+};
+const QUARTERS = ['Q4-2024','Q1-2025','Q2-2025','Q3-2025','Q4-2025'];
+
+// ════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════
+const fmtM    = n => (n/1e6).toFixed(2)+'M ₪';
+const fmtFull = n => '₪'+n.toLocaleString('he-IL');
+const fmtK    = n => n>=1e6?'₪'+(n/1e6).toFixed(2)+'M':n>=1e3?'₪'+(n/1e3).toFixed(0)+'K':'₪'+n;
+
+function groupBy(arr,key){ return arr.reduce((a,x)=>{ a[x[key]]=(a[x[key]]||0)+1; return a; },{}); }
+function sumBy(arr,field,key){ return arr.reduce((a,x)=>{ a[x[key]]=(a[x[key]]||0)+x[field]; return a; },{}); }
+function hexToRgb(h){ try{ return `${parseInt(h.slice(1,3),16)},${parseInt(h.slice(3,5),16)},${parseInt(h.slice(5,7),16)}`; }catch(e){return '100,116,139';} }
+
+// ════════════════════════════════════════════════
+//  HEADER
+// ════════════════════════════════════════════════
+document.getElementById('hdr-date').textContent = new Date().toLocaleDateString('he-IL',{year:'numeric',month:'long',day:'numeric'});
+const chips=[{label:'פרויקטים',color:'#60a5fa'},{label:'9 יישובים',color:'#a78bfa'},{label:'5 רבעונים',color:'#22c55e'}];
+chips.forEach(ch=>{
+  const sp=document.createElement('span');
+  sp.style.cssText=`background:rgba(${hexToRgb(ch.color)},.12);color:${ch.color};font-size:.68rem;padding:2px 8px;border-radius:9999px;font-weight:600;`;
+  sp.id = ch.label==='פרויקטים'?'hdr-proj-count':null;
+  sp.textContent=ch.label==='פרויקטים'? DATA.length+' פרויקטים' : ch.label;
+  document.getElementById('hdr-chips').appendChild(sp);
+});
+
+// ════════════════════════════════════════════════
+//  CHART.JS DEFAULTS
+// ════════════════════════════════════════════════
+Chart.defaults.color='#64748b';
+Chart.defaults.font.family="'Assistant','Segoe UI',sans-serif";
+Chart.defaults.font.size=12;
+
+// ════════════════════════════════════════════════
+//  CHARTS  (stored instances)
+// ════════════════════════════════════════════════
+const charts = {};
+
+function buildBudgetData(){
+  const sb=sumBy(DATA,'b','s');
+  return Object.entries(sb).sort((a,b)=>b[1]-a[1]);
+}
+function buildStatusData(){
+  const sc=groupBy(DATA,'st');
+  return STATUS_ORDER.map(s=>sc[s]||0);
+}
+function buildQuarterDatasets(){
+  const qData={};
+  QUARTERS.forEach(q=>{ qData[q]={}; STATUS_ORDER.forEach(s=>qData[q][s]=0); });
+  DATA.forEach(d=>{ if(qData[d.q]) qData[d.q][d.st]++; });
+  return STATUS_ORDER.map(s=>({
+    label:STATUS_CFG[s].he, data:QUARTERS.map(q=>qData[q][s]),
+    backgroundColor:STATUS_CFG[s].color, borderRadius:3, borderSkipped:false,
+  }));
+}
+function buildCategoryData(){
+  const cb=sumBy(DATA,'b','c');
+  return Object.entries(cb).sort((a,b)=>b[1]-a[1]);
+}
+
+// Budget chart
+(()=>{
+  const sorted=buildBudgetData();
+  charts.budget = new Chart(document.getElementById('budgetChart'),{
+    type:'bar',
+    data:{
+      labels:sorted.map(([k])=>k),
+      datasets:[{
+        label:'תקציב (₪)', data:sorted.map(([,v])=>v/1e6),
+        backgroundColor:function(ctx){
+          const chart=ctx.chart,{ctx:c,chartArea}=chart;
+          if(!chartArea) return '#3b82f6';
+          const g=c.createLinearGradient(chartArea.left,0,chartArea.right,0);
+          g.addColorStop(0,'rgba(99,102,241,.85)'); g.addColorStop(1,'rgba(59,130,246,.65)');
+          return g;
+        },
+        borderRadius:6, borderSkipped:false,
+      }]
+    },
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{rtl:true,callbacks:{label:c=>' ₪'+Math.round(c.raw*1e6).toLocaleString('he-IL')}}},
+      scales:{
+        x:{grid:{color:'rgba(51,65,85,.25)'},ticks:{callback:v=>'₪'+v+'M',color:'#64748b'}},
+        y:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:12}}}
+      }
+    }
+  });
+})();
+
+// Status donut
+(()=>{
+  charts.status = new Chart(document.getElementById('statusChart'),{
+    type:'doughnut',
+    data:{
+      labels:STATUS_ORDER.map(s=>STATUS_CFG[s].he),
+      datasets:[{data:buildStatusData(),backgroundColor:STATUS_ORDER.map(s=>STATUS_CFG[s].color),borderColor:'#0b1120',borderWidth:3,hoverOffset:10}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{display:false},tooltip:{rtl:true,callbacks:{label:c=>` ${c.label}: ${c.raw} פרויקטים (${(c.raw/DATA.length*100).toFixed(0)}%)`}}}
+    }
+  });
+  buildStatusLegend();
+})();
+
+function buildStatusLegend(){
+  const el=document.getElementById('status-legend');
+  el.innerHTML='';
+  const sc=groupBy(DATA,'st');
+  STATUS_ORDER.forEach(s=>{
+    const cnt=sc[s]||0, pct=(cnt/DATA.length*100).toFixed(0);
+    const div=document.createElement('div');
+    div.style.cssText='display:flex;align-items:center;justify-content:space-between;font-size:.74rem;';
+    div.innerHTML=`<div style="display:flex;align-items:center;gap:7px;"><div style="width:9px;height:9px;border-radius:50%;background:${STATUS_CFG[s].color};flex-shrink:0;"></div><span style="color:#94a3b8;">${STATUS_CFG[s].he}</span></div><div style="display:flex;align-items:center;gap:6px;"><span style="color:#64748b;font-size:.68rem;">${pct}%</span><span style="color:#e2e8f0;font-weight:700;">${cnt}</span></div>`;
+    el.appendChild(div);
+  });
+}
+
+// Quarter stacked
+(()=>{
+  charts.quarter = new Chart(document.getElementById('quarterChart'),{
+    type:'bar',
+    data:{labels:QUARTERS, datasets:buildQuarterDatasets()},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{padding:10,boxWidth:10,font:{size:10}}},tooltip:{rtl:true,mode:'index',intersect:false}},
+      scales:{
+        x:{stacked:true,grid:{display:false},ticks:{color:'#64748b'}},
+        y:{stacked:true,grid:{color:'rgba(51,65,85,.25)'},ticks:{color:'#64748b',precision:0}}
+      }
+    }
+  });
+})();
+
+// Category budget
+(()=>{
+  const sorted=buildCategoryData();
+  charts.category = new Chart(document.getElementById('categoryChart'),{
+    type:'bar',
+    data:{
+      labels:sorted.map(([k])=>k),
+      datasets:[{label:'תקציב',data:sorted.map(([,v])=>v),backgroundColor:sorted.map(([k])=>CAT_COLOR[k]||'#64748b'),borderRadius:5,borderSkipped:false}]
+    },
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{rtl:true,callbacks:{label:c=>' '+fmtK(c.raw)}}},
+      scales:{
+        x:{grid:{color:'rgba(51,65,85,.25)'},ticks:{callback:v=>fmtK(v),color:'#64748b',font:{size:10}}},
+        y:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:11}}}
+      }
+    }
+  });
+})();
+
+// ════════════════════════════════════════════════
+//  KPI UPDATE
+// ════════════════════════════════════════════════
+function updateKPIs(){
+  const total=DATA.reduce((s,d)=>s+d.b,0);
+  const done=DATA.filter(d=>d.st==='Done').length;
+  const active=DATA.length-done;
+  const urgent=DATA.filter(d=>d.pr===5&&d.st!=='Done').length;
+  const pct=(done/DATA.length*100).toFixed(1);
+
+  document.getElementById('kpi-budget').textContent = fmtM(total);
+  document.getElementById('kpi-budget-sub').textContent = '9 יישובים · '+DATA.length+' פרויקטים';
+  document.getElementById('kpi-active').textContent = active;
+  document.getElementById('kpi-total').textContent  = DATA.length;
+  document.getElementById('kpi-pct').textContent    = pct+'%';
+  document.getElementById('kpi-done').textContent   = done;
+  document.getElementById('kpi-urgent').textContent = urgent;
+
+  // active bar
+  document.getElementById('kpi-active-bar').style.width=(active/DATA.length*100)+'%';
+
+  // ring
+  const ring=document.getElementById('progress-ring');
+  const circ=132;
+  ring.style.transition='stroke-dashoffset .8s ease';
+  ring.style.strokeDashoffset=circ-(parseFloat(pct)/100*circ);
+
+  // urgent chips
+  const chips=document.getElementById('urgent-chips');
+  chips.innerHTML='';
+  [...new Set(DATA.filter(d=>d.pr===5&&d.st!=='Done').map(d=>d.s))].slice(0,4).forEach(s=>{
+    const sp=document.createElement('span');
+    sp.textContent=s; sp.style.cssText='background:rgba(239,68,68,.15);color:#f87171;font-size:.65rem;padding:1px 7px;border-radius:9999px;';
+    chips.appendChild(sp);
+  });
+
+  // header count
+  const hc=document.getElementById('hdr-proj-count');
+  if(hc) hc.textContent=DATA.length+' פרויקטים';
+}
+
+// ════════════════════════════════════════════════
+//  CHART REFRESH  (update in place, no re-create)
+// ════════════════════════════════════════════════
+function refreshCharts(){
+  // Budget
+  const bs=buildBudgetData();
+  charts.budget.data.labels=bs.map(([k])=>k);
+  charts.budget.data.datasets[0].data=bs.map(([,v])=>v/1e6);
+  charts.budget.update();
+
+  // Status donut
+  charts.status.data.datasets[0].data=buildStatusData();
+  charts.status.options.plugins.tooltip.callbacks.label=c=>` ${c.label}: ${c.raw} פרויקטים (${(c.raw/DATA.length*100).toFixed(0)}%)`;
+  charts.status.update();
+  buildStatusLegend();
+
+  // Quarter stacked
+  const qds=buildQuarterDatasets();
+  charts.quarter.data.datasets.forEach((ds,i)=>{ ds.data=qds[i].data; });
+  charts.quarter.update();
+
+  // Category
+  const cs=buildCategoryData();
+  charts.category.data.labels=cs.map(([k])=>k);
+  charts.category.data.datasets[0].data=cs.map(([,v])=>v);
+  charts.category.data.datasets[0].backgroundColor=cs.map(([k])=>CAT_COLOR[k]||'#64748b');
+  charts.category.update();
+}
+
+// ════════════════════════════════════════════════
+//  REFRESH ALL
+// ════════════════════════════════════════════════
+function refreshAll(){
+  updateKPIs();
+  refreshCharts();
+  renderTable();
+  refreshSettlementFilter();
+}
+
+// ════════════════════════════════════════════════
+//  TABLE  –  sort & filter state
+// ════════════════════════════════════════════════
+let sortKey=null, sortDir=1;
+
+function refreshSettlementFilter(){
+  const sel=document.getElementById('q-settlement');
+  const cur=sel.value;
+  while(sel.options.length>1) sel.remove(1);
+  [...new Set(DATA.map(d=>d.s))].sort().forEach(s=>{
+    const o=document.createElement('option'); o.value=s; o.textContent=s;
+    if(s===cur) o.selected=true;
+    sel.appendChild(o);
+  });
+}
+refreshSettlementFilter();
+
+function getFiltered(){
+  const search=document.getElementById('q-search').value.trim().toLowerCase();
+  const stF=document.getElementById('q-status').value;
+  const seF=document.getElementById('q-settlement').value;
+  const prF=document.getElementById('q-priority').value;
+
+  let res=DATA.filter((d,i)=>{
+    if(search&&!(d.p.includes(search)||d.s.includes(search)||d.cc.includes(search)||d.c.includes(search))) return false;
+    if(stF && d.st!==stF) return false;
+    if(seF && d.s!==seF)  return false;
+    if(prF && d.pr!==+prF) return false;
+    return true;
+  }).map((d,_,__)=>({...d, _idx:DATA.indexOf(d)}));
+
+  if(sortKey){
+    res.sort((a,b)=>{
+      let av=a[sortKey], bv=b[sortKey];
+      if(typeof av==='string') av=av.toLowerCase();
+      if(typeof bv==='string') bv=bv.toLowerCase();
+      return av<bv?-sortDir:av>bv?sortDir:0;
+    });
+  }
+  return res;
+}
+
+function renderTable(){
+  const rows=getFiltered();
+  const tbody=document.getElementById('tbl-body');
+  tbody.innerHTML='';
+
+  document.getElementById('tbl-count').textContent=rows.length;
+  const fb=rows.reduce((s,d)=>s+d.b,0);
+  document.getElementById('tbl-budget').textContent=fmtK(fb);
+  const uv=rows.filter(d=>d.pr===5&&d.st!=='Done').length;
+  document.getElementById('tbl-urgent-stat').textContent=uv>0?uv+' פרויקטים דחופים פעילים':'';
+
+  rows.forEach(row=>{
+    const idx=row._idx;
+    const urgent=row.pr===5;
+    const sc=STATUS_CFG[row.st];
+    const prColor=row.pr===5?'#f87171':row.pr===4?'#fb923c':row.pr===3?'#fbbf24':'#64748b';
+
+    const tr=document.createElement('tr');
+    tr.dataset.idx=idx;
+    if(urgent) tr.classList.add('priority-5-row');
+    tr.style.borderBottom='1px solid rgba(51,65,85,.2)';
+
+    // helper to make td editable
+    const td=(content, field, type, extraStyle='')=>{
+      const cell=document.createElement('td');
+      cell.classList.add('editable');
+      cell.dataset.field=field;
+      cell.dataset.type=type;
+      cell.style.cssText=`padding:8px 10px;${extraStyle}`;
+      cell.innerHTML=content;
+      return cell;
+    };
+
+    // Settlement
+    tr.appendChild(td(`<span style="color:#e2e8f0;font-weight:600;">${row.s}</span>`,'s','text'));
+    // Project
+    tr.appendChild(td(`<span style="color:#cbd5e1;">${row.p}${urgent?'<span class="urgent-tag">⚡ דחוף</span>':''}</span>`,'p','text'));
+    // Category
+    tr.appendChild(td(`<span class="badge" style="background:rgba(${hexToRgb(CAT_COLOR[row.c]||'#64748b')},.15);color:${CAT_COLOR[row.c]||'#64748b'};">${row.c}</span>`,'c','select-category'));
+    // Status
+    tr.appendChild(td(`<span class="badge" style="background:${sc.bg};color:${sc.color};">${sc.he}</span>`,'st','select-status'));
+    // Priority
+    tr.appendChild(td(`<span style="color:${prColor};font-weight:700;font-size:.9rem;">${row.pr}</span>`,'pr','select-priority','text-align:center;'));
+    // Budget
+    tr.appendChild(td(`<span style="color:#94a3b8;font-variant-numeric:tabular-nums;white-space:nowrap;">${fmtFull(row.b)}</span>`,'b','number','text-align:left;'));
+    // Contact
+    tr.appendChild(td(`<span style="color:#64748b;font-size:.8rem;">${row.cc}</span>`,'cc','text'));
+    // Quarter
+    tr.appendChild(td(`<span style="background:rgba(51,65,85,.4);color:#94a3b8;font-size:.7rem;padding:2px 8px;border-radius:5px;">${row.q}</span>`,'q','select-quarter'));
+
+    // Delete button
+    const delTd=document.createElement('td');
+    delTd.style.cssText='padding:8px 10px;text-align:center;';
+    const delBtn=document.createElement('button');
+    delBtn.className='del-btn'; delBtn.textContent='🗑';
+    delBtn.title='מחק פרויקט';
+    delBtn.addEventListener('click',(e)=>{ e.stopPropagation(); deleteProject(idx); });
+    delTd.appendChild(delBtn);
+    tr.appendChild(delTd);
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ════════════════════════════════════════════════
+//  INLINE EDITING  (event delegation)
+// ════════════════════════════════════════════════
+document.getElementById('tbl-body').addEventListener('click', function(e){
+  const cell=e.target.closest('td.editable');
+  if(!cell) return;
+  if(cell.querySelector('input,select')) return; // already editing
+
+  const tr=cell.closest('tr');
+  const idx=+tr.dataset.idx;
+  const field=cell.dataset.field;
+  const type=cell.dataset.type;
+  openInlineEdit(cell, idx, field, type);
+});
+
+function openInlineEdit(cell, idx, field, type){
+  cell.classList.add('editing');
+  const currentVal=DATA[idx][field];
+  let input;
+
+  if(type==='select-status'){
+    input=document.createElement('select');
+    input.className='edit-select';
+    STATUS_ORDER.forEach(s=>{
+      const o=document.createElement('option');
+      o.value=s; o.textContent=STATUS_CFG[s].he;
+      if(s===currentVal) o.selected=true;
+      input.appendChild(o);
+    });
+  } else if(type==='select-category'){
+    input=document.createElement('select');
+    input.className='edit-select';
+    CATEGORIES.forEach(c=>{
+      const o=document.createElement('option');
+      o.value=c; o.textContent=c;
+      if(c===currentVal) o.selected=true;
+      input.appendChild(o);
+    });
+  } else if(type==='select-priority'){
+    input=document.createElement('select');
+    input.className='edit-select';
+    [1,2,3,4,5].forEach(n=>{
+      const o=document.createElement('option');
+      o.value=n; o.textContent=n+(n===5?' – דחוף':n===3?' – בינונית':n===1?' – נמוכה':'');
+      if(n===currentVal) o.selected=true;
+      input.appendChild(o);
+    });
+  } else if(type==='select-quarter'){
+    input=document.createElement('select');
+    input.className='edit-select';
+    QUARTERS.forEach(q=>{
+      const o=document.createElement('option');
+      o.value=q; o.textContent=q;
+      if(q===currentVal) o.selected=true;
+      input.appendChild(o);
+    });
+  } else if(type==='number'){
+    input=document.createElement('input');
+    input.type='number'; input.min=0; input.className='edit-input';
+    input.value=currentVal;
+  } else {
+    input=document.createElement('input');
+    input.type='text'; input.className='edit-input';
+    input.value=currentVal;
+  }
+
+  cell.innerHTML='';
+  cell.appendChild(input);
+  input.focus();
+  if(input.tagName==='INPUT' && input.type==='text') input.select();
+
+  function commit(){
+    let nv=input.value;
+    if(type==='number'||type==='select-priority') nv=+nv;
+    if(nv===''&&type!=='number') nv=currentVal; // don't allow empty text
+    DATA[idx][field]=nv;
+    saveToStorage();
+    refreshAll();
+  }
+
+  if(type.startsWith('select')){
+    input.addEventListener('change',()=>{ commit(); });
+    input.addEventListener('blur',()=>{ commit(); });
+  } else {
+    input.addEventListener('blur',()=>{ commit(); });
+    input.addEventListener('keydown',(e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); input.blur(); }
+      if(e.key==='Escape'){ cell.classList.remove('editing'); renderTable(); }
+    });
+  }
+}
+
+// ════════════════════════════════════════════════
+//  DELETE PROJECT
+// ════════════════════════════════════════════════
+function deleteProject(idx){
+  const row=DATA[idx];
+  if(!confirm(`למחוק את הפרויקט "${row.p}" מ${row.s}?`)) return;
+  DATA.splice(idx,1);
+  saveToStorage();
+  refreshAll();
+}
+
+// ════════════════════════════════════════════════
+//  SORT
+// ════════════════════════════════════════════════
+function sortTable(key){
+  if(sortKey===key) sortDir*=-1; else{ sortKey=key; sortDir=1; }
+  ['s','p','st','pr','b','q'].forEach(k=>{
+    const el=document.getElementById('si-'+k);
+    if(el) el.textContent='';
+  });
+  const el=document.getElementById('si-'+key);
+  if(el) el.textContent=sortDir===1?' ↑':' ↓';
+  renderTable();
+}
+
+// ════════════════════════════════════════════════
+//  FILTERS
+// ════════════════════════════════════════════════
+['q-search','q-status','q-settlement','q-priority'].forEach(id=>{
+  document.getElementById(id).addEventListener(id==='q-search'?'input':'change', renderTable);
+});
+
+// ════════════════════════════════════════════════
+//  MODAL – ADD PROJECT
+// ════════════════════════════════════════════════
+function openModal(){
+  document.getElementById('modal-overlay').classList.add('open');
+  document.getElementById('modal-err').style.display='none';
+  // clear fields
+  ['m-settlement','m-project','m-contact','m-budget'].forEach(id=>{ document.getElementById(id).value=''; });
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); }
+
+document.getElementById('modal-overlay').addEventListener('click',function(e){
+  if(e.target===this) closeModal();
+});
+
+function saveNewProject(){
+  const s=document.getElementById('m-settlement').value.trim();
+  const p=document.getElementById('m-project').value.trim();
+  const c=document.getElementById('m-category').value;
+  const st=document.getElementById('m-status').value;
+  const pr=+document.getElementById('m-priority').value;
+  const b=+document.getElementById('m-budget').value||0;
+  const cc=document.getElementById('m-contact').value.trim()||'—';
+  const q=document.getElementById('m-quarter').value;
+
+  const err=document.getElementById('modal-err');
+  if(!s||!p){ err.textContent='יישוב ושם פרויקט הם שדות חובה.'; err.style.display='block'; return; }
+  err.style.display='none';
+
+  DATA.push({s,p,c,st,pr,b,cc,q});
+  saveToStorage();
+  refreshAll();
+  closeModal();
+}
+
+// ════════════════════════════════════════════════
+//  EXPORT CSV
+// ════════════════════════════════════════════════
+function exportCSV(){
+  const BOM='\uFEFF';
+  const headers=['יישוב','פרויקט','קטגוריה','סטטוס','עדיפות','תקציב (₪)','אחראי מועצה','רבעון'];
+  const rows=DATA.map(d=>[d.s,d.p,d.c,STATUS_CFG[d.st]?.he||d.st,d.pr,d.b,d.cc,d.q].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv=BOM+[headers.map(h=>`"${h}"`).join(','),...rows].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='emek_yizrael_projects.csv'; a.click();
+}
+
+// ════════════════════════════════════════════════
+//  INITIAL RENDER
+// ════════════════════════════════════════════════
+updateKPIs();
+// Animate progress ring on load
+setTimeout(()=>{
+  const ring=document.getElementById('progress-ring');
+  const done=DATA.filter(d=>d.st==='Done').length;
+  const pct=done/DATA.length*100;
+  ring.style.transition='stroke-dashoffset 1.5s ease';
+  ring.style.strokeDashoffset=132-(pct/100*132);
+},500);
+// Active bar
+setTimeout(()=>{
+  const active=DATA.filter(d=>d.st!=='Done').length;
+  document.getElementById('kpi-active-bar').style.width=(active/DATA.length*100)+'%';
+},400);
+
+renderTable();
+
+</script>
+</body>
+</html>
